@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: darktracex-web
+spec:
+  selector: { app: darktracex-web }
+  ports: [{ name: http, port: 3000, targetPort: http }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: darktracex-web
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: darktracex-web } }
+  template:
+    metadata: { labels: { app: darktracex-web } }
+    spec:
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: web
+          image: registry.example/darktracex/web:replace-with-digest
+          ports: [{ name: http, containerPort: 3000 }]
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 500m, memory: 512Mi } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: ["ALL"] } }
+
