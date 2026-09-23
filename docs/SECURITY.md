@@ -1,32 +1,23 @@
-# Security practices
+# Security implementation and deployment requirements
 
-## Security invariants
+## Implemented
 
-1. **No client-side secrets.** All LLM, feed, notification, database, and encryption credentials live in a workload-bound external secret manager.
-2. **Tenant-first authorization.** Every query derives `tenant_id` from verified identity, never from a browser parameter. PostgreSQL RLS backs application checks.
-3. **Provenance is immutable.** Store source, terms, collection timestamp, transformation, confidence, and analyst change history for every intelligence decision.
-4. **Human authority remains decisive.** AI may summarize and prioritize. It cannot execute blocking, notification, enrichment, or export actions without policy checks and an authorized identity.
-5. **Untrusted inputs are contained.** Parse feeds, files, archives, URLs, and metadata in isolated workers with CPU/memory/time/network limits; scan uploads and disable macros.
+Protected REST endpoints, GraphQL and MCP require a signed bearer token. Authentication checks expiry, issuer/audience, revocation, active user and active tenant. Authorization uses the current database role, so role changes affect existing sessions. Tenant identity comes from the authenticated user. Application queries scope private intelligence, telemetry, alerts, extensions and conversations to that tenant; public CISA records are shared.
 
-## Required production controls
+Passwords are hashed. AI and database credentials stay on the server. Local secrets are generated under ignored `.runtime`. Logout stores a token digest for revocation. Conversation history is scoped to tenant and user. Selecting a local AI provider does not allow cloud fallback unless explicitly configured. Analysts should review supplied evidence and AI responses.
 
-- OIDC/SAML with MFA, SCIM lifecycle, short-lived sessions, service workload identity, and separate break-glass accounts.
-- AES-256 envelope encryption for sensitive fields, TLS 1.2+ in transit, separate KMS keys per environment/tenant tier, scheduled rotation, and no plaintext key logs.
-- Strict CSP, HSTS, `HttpOnly; Secure; SameSite=Lax` session cookies when cookies are used, CSRF protection for browser mutations, rate limits, request-size limits, and signed exports.
-- Append-only audit stream exported to a separate security account; alert on privilege changes, bulk exports, API-key events, source changes, and cross-tenant authorization failures.
-- Egress allowlists and per-connector credentials. Do not directly connect to anonymous networks or unapproved sources from the control plane.
-- SBOM, dependency update policy, SAST/DAST, secret scanning, image signing, admission policy, runtime anomaly detection, and regular external penetration testing.
-- Retention and deletion policy by data class. Classify data before AI use; redact personal data/secrets and record provider, model, policy version, and source references for each completion.
+Telemetry has batch, value and timestamp validation. MCP has a bounded request body, origin checks and read-only tools. Marketplace execution uses three bundled handlers with no network egress. Source import records provenance and deduplicates keyword alerts. Audit events are persistent application records. XLSX cells escape formula prefixes; PDF text is escaped before rendering.
 
-## AI safety controls
+Admin webhook subscriptions are tenant-scoped and accept HTTPS endpoints only. URLs cannot contain credentials, query strings or fragments and local, private or metadata targets are rejected at registration and delivery. Each subscription supplies a 32-character shared secret that is encrypted with the existing AI secret key and never returned. Alert payloads are redacted, signed with HMAC-SHA256 and sent without redirects; failures are counted for operator review. Supported filters are explicit event names or `*` with a minimum severity threshold. Use `POST /api/v1/integrations/webhooks`, `GET /api/v1/integrations/webhooks` and `DELETE /api/v1/integrations/webhooks/{id}` as an administrator.
 
-- Treat all retrieved intelligence as untrusted context; delimit and label it before model use to reduce prompt injection.
-- Apply prompt/response policy filters for offensive requests, credential material, personal data, and prohibited automated actions.
-- Limit AI tools to least-privilege, typed functions. Require user confirmation and approval policy for side effects.
-- Use per-tenant provider routing, quotas, timeouts, circuit breakers, and structured logs without prompt/body secrets.
-- Evaluate summaries and risk scoring against curated incident cases before deployment; monitor hallucination, citation coverage, refusal quality, bias, latency, and cost.
+Report schedules are now durably registered per tenant with bounded five-field cron syntax, validated recipients and audit records. They return `delivery_status=pending_external_delivery` until an SMTP or approved delivery worker is configured; no report is claimed as sent without that service. Use `POST /api/v1/reports/schedules`, `GET /api/v1/reports/schedules` and `DELETE /api/v1/reports/schedules/{id}` as a lead or administrator.
 
-## Legal and ethical source policy
+Prepared Windows services bind to loopback. Local Elasticsearch security is disabled and must remain loopback-only. Container and Kubernetes application processes use non-root users; manifests include probes and network policy.
 
-Monitor only public, licensed, customer-authorized, or otherwise legally permitted sources. Respect source terms, robots/rate limits where applicable, privacy law, breach-notification law, and data residency. The platform is designed for analysis and defensive response—not for purchasing leaked credentials, contacting criminal actors, bypassing access controls, or collecting illicit content.
+## Remaining production requirements
 
+PostgreSQL row-level security is not enabled: tenant isolation currently depends on application query filters. Audit records are not immutable or cryptographically signed. Database fields are not envelope-encrypted. The browser stores its bearer token locally; this is not an HttpOnly cookie session. OIDC/SAML, MFA, recovery flows, SCIM and centralized secret management are not implemented. Source ingestion is not an isolated malware-analysis sandbox. No compliance certification, independent penetration testing or predictive accuracy is claimed.
+
+Before an internet-facing rollout, configure HTTPS and trusted ingress, authentication rate limits, request limits, protected metrics, database/search authentication and TLS, restricted egress, monitored backups with tested restores, retention policies and secret rotation. Add SSO/MFA and tenant RLS for the intended operating model. Review dependencies and run penetration and capacity tests against the actual deployment. Lock down self-service registration if invitation-only onboarding is required.
+
+No licensed dark-web collection service is connected. Feed access and retention obligations must match the selected source. A source type entered during import is provenance supplied by the uploader; it does not independently verify their license.

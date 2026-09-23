@@ -1,0 +1,35 @@
+services:
+  api:
+    environment:
+      ELASTICSEARCH_URL: https://elasticsearch:9200
+      ELASTICSEARCH_CA_CERTS: /run/elasticsearch-ca/ca.crt
+    volumes:
+      - type: bind
+        source: ${ELASTICSEARCH_CERT_DIRECTORY:?Set external Elasticsearch certificate directory}/ca.crt
+        target: /run/elasticsearch-ca/ca.crt
+        read_only: true
+        bind:
+          create_host_path: false
+  elasticsearch:
+    environment:
+      xpack.security.http.ssl.enabled: "true"
+      xpack.security.http.ssl.key: certs/tls.key
+      xpack.security.http.ssl.certificate: certs/tls.crt
+      xpack.security.http.ssl.certificate_authorities: certs/ca.crt
+      xpack.security.transport.ssl.enabled: "true"
+      xpack.security.transport.ssl.verification_mode: full
+      xpack.security.transport.ssl.key: certs/tls.key
+      xpack.security.transport.ssl.certificate: certs/tls.crt
+      xpack.security.transport.ssl.certificate_authorities: certs/ca.crt
+    volumes:
+      - type: bind
+        source: ${ELASTICSEARCH_CERT_DIRECTORY:?Set external Elasticsearch certificate directory}
+        target: /usr/share/elasticsearch/config/certs
+        read_only: true
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent --cacert config/certs/ca.crt -u \"elastic:$${ELASTIC_PASSWORD}\" https://localhost:9200/_cluster/health >/dev/null || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 12

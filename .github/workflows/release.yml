@@ -1,0 +1,45 @@
+name: Publish preview with local model
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-preview-model
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Test installer and model reconstruction
+        run: python -m unittest discover -s scripts/tests -v
+      - name: Download original model and verify pinned SHA-256
+        run: python scripts/model_assets.py download --source upstream
+      - name: Package checksum-verified model parts
+        run: |
+          python scripts/model_assets.py pack
+          cmp models/manifest.json output/release/model-manifest.json
+          cp models/LICENSE-APACHE-2.0.txt output/release/LICENSE-MODEL.txt
+          cp models/README.md output/release/MODEL-NOTICE.md
+      - name: Publish source and model release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if ! gh release view v0.1.0-preview >/dev/null 2>&1; then
+            gh release create v0.1.0-preview --target "$GITHUB_SHA" --draft --prerelease --title "DarkTrace X 0.1.0 Preview — Local AI & Intelligence Workspace" --notes-file docs/RELEASE_NOTES.md
+          fi
+          gh release upload v0.1.0-preview output/release/* --clobber
+          gh release edit v0.1.0-preview --draft=false --prerelease --notes-file docs/RELEASE_NOTES.md

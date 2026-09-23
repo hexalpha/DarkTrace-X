@@ -1,235 +1,56 @@
 "use client";
-
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import {
-  Activity, Bell, Bot, ChevronDown, Command, Crosshair, Database, FileSearch,
-  Globe2, Languages, Moon, Network, Orbit, PanelLeftClose, Radar, Search,
-  Settings2, Shield, Sparkles, Sun, TriangleAlert, Workflow, Zap
-} from "lucide-react";
+import { ThreatMap } from "./threat-map";
+import { FormEvent, useEffect, useState } from "react";
+import { Activity, Bot, Database, FileSearch, Globe2, GitBranch, Languages, LogOut, Menu, Moon, Network, Orbit, Radar, RefreshCw, Settings2, Shield, Sparkles, Sun, TriangleAlert, Users, Workflow, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-
-import { copy, type Language } from "../lib/i18n";
+import { copy, languageOptions, type Language } from "../lib/i18n";
 import type { DashboardOverview } from "../lib/types";
+import { apiRequest } from "../lib/api";
+import { FeatureWorkspace, type FeatureKey } from "./feature-workspace";
+import { Copilot } from "./copilot";
 
-// Same-origin is the secure deployment default; local dev may override these public values.
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "";
-
-const demoOverview: DashboardOverview = {
-  protected_assets: 1284,
-  active_alerts: 42,
-  critical_alerts: 3,
-  iocs_tracked: 24891,
-  risk_score: 71,
-  enrichment_coverage: 94.8,
-  event_rate: 1824,
-  attack_timeline: [
-    { hour: "00:00", events: 480, risk: 22 }, { hour: "04:00", events: 612, risk: 36 },
-    { hour: "08:00", events: 1048, risk: 58 }, { hour: "12:00", events: 1743, risk: 71 },
-    { hour: "16:00", events: 1384, risk: 63 }, { hour: "20:00", events: 1824, risk: 71 }
-  ],
-  regions: [
-    { name: "North America", events: 643, risk: "high" }, { name: "Europe", events: 498, risk: "medium" },
-    { name: "Asia Pacific", events: 511, risk: "critical" }, { name: "Other", events: 172, risk: "low" }
-  ]
-};
-
-const nav: { label: keyof typeof copy.en; icon: LucideIcon; badge?: string }[] = [
-  { label: "overview", icon: Orbit }, { label: "intelligence", icon: Database }, { label: "hunt", icon: Crosshair },
-  { label: "exposure", icon: Radar, badge: "3" }, { label: "graph", icon: Network }, { label: "reports", icon: FileSearch }
+const configuredApi = process.env.NEXT_PUBLIC_API_URL ?? "";
+function localApiUrl() { return configuredApi || (typeof window !== "undefined" && window.location.port === "3000" ? `http://${window.location.hostname}:8000` : ""); }
+type User = { user_id: string; tenant_id: string; role: string; email: string };
+type Alert = { id: string; title: string; severity: string; status: string; score: number; created_at: string; evidence: Record<string,unknown> };
+const empty: DashboardOverview = { protected_assets: 0, active_alerts: 0, critical_alerts: 0, iocs_tracked: 0, risk_score: 0, enrichment_coverage: 0, event_rate: 0, attack_timeline: [], regions: [] };
+const nav: {label: FeatureKey; icon: LucideIcon}[] = [
+  {label:"overview",icon:Orbit},{label:"intelligence",icon:Database},{label:"hunt",icon:Radar},{label:"exposure",icon:Globe2},{label:"assets",icon:Shield},{label:"graph",icon:Network},{label:"cves",icon:Shield},{label:"actors",icon:GitBranch},{label:"alerts",icon:TriangleAlert},
+  {label:"anomalies",icon:Activity},{label:"predictive",icon:Sparkles},{label:"aiStudio",icon:Bot},{label:"automations",icon:Workflow},{label:"mcp",icon:Network},{label:"marketplace",icon:Zap},{label:"sources",icon:Globe2},{label:"documents",icon:FileSearch},{label:"entities",icon:Network},{label:"events",icon:TriangleAlert},{label:"crawls",icon:RefreshCw},{label:"reports",icon:FileSearch},{label:"administration",icon:Users},{label:"settings",icon:Settings2}
 ];
 
-const priorityItems = [
-  { severity: "critical", time: "09m", title: "Credential exposure correlated", detail: "Approved breach source · 12 evidence items", score: 96 },
-  { severity: "high", time: "27m", title: "Outbound beacon anomaly", detail: "FINANCE-API-02 · T1071.001", score: 84 },
-  { severity: "high", time: "1h", title: "Internet-facing exploit signal", detail: "CVE-2026-24817 · asset overlap", score: 78 },
-  { severity: "medium", time: "2h", title: "Phishing infrastructure overlap", detail: "Brand watch · 3 linked domains", score: 64 }
-];
-
-const tactics = [
-  ["RECON", "T1595", "External scan", "observed"],
-  ["ACCESS", "T1566", "Phishing", "observed"],
-  ["EXECUTE", "T1059", "Command shell", "watch"],
-  ["PERSIST", "T1078", "Valid accounts", "watch"],
-  ["EXFIL", "T1041", "Web service", "clear"]
-];
-
-function compactNumber(value: number) {
-  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value);
-}
-
-export function DarkTraceDashboard() {
-  const [language, setLanguage] = useState<Language>("en");
-  const [light, setLight] = useState(false);
-  const [overview, setOverview] = useState<DashboardOverview>(demoOverview);
-  const [activeNav, setActiveNav] = useState("overview");
-  const [pulse, setPulse] = useState(demoOverview.event_rate);
-  const [prompt, setPrompt] = useState("");
-  const [assistantReply, setAssistantReply] = useState("I’ve correlated the current priority queue. Three items need analyst validation: credential exposure, beacon behavior, and the internet-facing exploit signal.");
-  const [isThinking, setIsThinking] = useState(false);
-  const t = copy[language];
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("light", light);
-  }, [light]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/dashboard/overview`, { signal: controller.signal })
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Dashboard API unavailable")))
-      .then((data: DashboardOverview) => { setOverview(data); setPulse(data.event_rate); })
-      .catch(() => undefined);
-    return () => controller.abort();
-  }, []);
-
-  useEffect(() => {
-    const socketUrl = process.env.NEXT_PUBLIC_WS_URL ?? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws/events`;
-    const socket = new WebSocket(socketUrl);
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data) as { type?: string; events_per_minute?: number };
-      if (data.type === "telemetry.pulse" && data.events_per_minute) setPulse(data.events_per_minute);
-    };
-    return () => socket.close();
-  }, []);
-
-  const statCards = useMemo(() => [
-    { label: "Protected assets", value: overview.protected_assets.toLocaleString(), delta: "+2.4%", icon: Shield, tone: "cyan" },
-    { label: "Active alerts", value: overview.active_alerts.toString(), delta: `${overview.critical_alerts} critical`, icon: TriangleAlert, tone: "rose" },
-    { label: "Tracked IOCs", value: compactNumber(overview.iocs_tracked), delta: "94.8% enriched", icon: Search, tone: "violet" },
-    { label: "Event velocity", value: compactNumber(pulse), delta: "events / min", icon: Activity, tone: "emerald" }
-  ], [overview, pulse]);
-
-  async function askAssistant(event: FormEvent) {
-    event.preventDefault();
-    const question = prompt.trim();
-    if (!question || isThinking) return;
-    setPrompt("");
-    setIsThinking(true);
-    try {
-      const response = await fetch(`${apiUrl}/api/v1/ai/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: question, language })
-      });
-      const data = await response.json() as { message?: string; detail?: { message?: string } };
-      setAssistantReply(data.message ?? data.detail?.message ?? "The assistant could not complete that request right now.");
-    } catch {
-      setAssistantReply("The AI control plane is offline. Your existing investigation and evidence remain available.");
-    } finally {
-      setIsThinking(false);
-    }
-  }
-
-  return (
-    <main className="app-shell">
-      <aside className="sidebar">
-        <div className="brand-lockup">
-          <div className="brand-mark"><Shield size={19} strokeWidth={2.5} /></div>
-          <div><span className="brand-name">DARKTRACE</span><span className="brand-x">X</span></div>
-          <button className="icon-button sidebar-collapse" aria-label="Collapse navigation"><PanelLeftClose size={16} /></button>
-        </div>
-        <div className="tenant-switcher"><span className="tenant-dot" /> <span>Northstar Global</span><ChevronDown size={14} /></div>
-        <nav className="primary-nav" aria-label="Primary navigation">
-          <p className="nav-caption">OPERATIONS</p>
-          {nav.map(({ label, icon: Icon, badge }) => (
-            <button className={`nav-item ${activeNav === label ? "active" : ""}`} onClick={() => setActiveNav(label)} key={label}>
-              <Icon size={17} /><span>{t[label]}</span>{badge && <b>{badge}</b>}
-            </button>
-          ))}
-          <p className="nav-caption nav-caption-lower">SYSTEM</p>
-          <button className="nav-item"><Settings2 size={17} /><span>{t.settings}</span></button>
-        </nav>
-        <div className="operator-card">
-          <div className="operator-avatar">AS</div>
-          <div><strong>Aarav Sharma</strong><span>Senior Analyst</span></div>
-          <ChevronDown size={14} />
-        </div>
-      </aside>
-
-      <section className="workspace">
-        <header className="topbar">
-          <div className="crumb"><span>Operations</span><i>/</i><strong>{t.command}</strong></div>
-          <div className="topbar-actions">
-            <div className="search-shortcut"><Search size={16} /><span>Search intelligence</span><kbd><Command size={11} /> K</kbd></div>
-            <button className="icon-button" aria-label="Toggle language" onClick={() => setLanguage(language === "en" ? "hi" : "en")}><Languages size={17} /><span className="language-code">{language.toUpperCase()}</span></button>
-            <button className="icon-button" aria-label="Toggle color mode" onClick={() => setLight(!light)}>{light ? <Moon size={17} /> : <Sun size={17} />}</button>
-            <button className="notification-button" aria-label="Notifications"><Bell size={18} /><span /></button>
-          </div>
-        </header>
-
-        <div className="dashboard-scroll">
-          <section className="welcome-row">
-            <div>
-              <div className="eyebrow"><span className="pulse-dot" /> {t.live} <i>·</i> UTC +05:30</div>
-              <h1>Defend with <em>clarity.</em></h1>
-              <p>Signal-rich intelligence for decisive security operations.</p>
-            </div>
-            <div className="posture-chip"><span>Posture score</span><strong>{overview.risk_score}</strong><div className="posture-track"><i style={{ width: `${overview.risk_score}%` }} /></div><small>Guarded</small></div>
-          </section>
-
-          <section className="stat-grid">
-            {statCards.map(({ label, value, delta, icon: Icon, tone }) => (
-              <article className="stat-card" key={label}>
-                <div className={`stat-icon ${tone}`}><Icon size={18} /></div>
-                <div className="stat-copy"><span>{label}</span><strong>{value}</strong><small>{delta}</small></div>
-                <div className={`corner-orbit ${tone}`} />
-              </article>
-            ))}
-          </section>
-
-          <section className="main-grid">
-            <article className="glass-card map-card">
-              <div className="card-title-row"><div><p className="card-kicker">REAL-TIME CORRELATION</p><h2>{t.global}</h2></div><button className="pill-button"><Globe2 size={14} /> Global <ChevronDown size={13} /></button></div>
-              <div className="map-frame">
-                <div className="map-scanline" />
-                <svg className="world-map" viewBox="0 0 820 340" role="img" aria-label="Real-time global threat map">
-                  <defs>
-                    <radialGradient id="mapGlow"><stop stopColor="#5eead4" stopOpacity=".36"/><stop offset="1" stopColor="#5eead4" stopOpacity="0"/></radialGradient>
-                    <linearGradient id="attackArc" x1="0" x2="1"><stop stopColor="#fb7185" stopOpacity=".1"/><stop offset=".5" stopColor="#fb7185"/><stop offset="1" stopColor="#22d3ee" stopOpacity=".2"/></linearGradient>
-                  </defs>
-                  <g className="map-grid"><path d="M0 85H820M0 170H820M0 255H820"/><path d="M102 0V340M205 0V340M307 0V340M410 0V340M512 0V340M615 0V340M717 0V340"/></g>
-                  <g className="continents"><path d="M80 70l75-30 65 18 16 42-37 21-19 45-56 8-28-43-35-14z"/><path d="M230 155l48 10 34 63-21 83-38-18-10-60-31-42z"/><path d="M390 65l67-23 97 23 45 53-36 34-46-12-41 34-56-18-39-44z"/><path d="M476 166l63 8 54 48-22 69-72-8-37-63z"/><path d="M635 218l83 8 38 42-28 39-73-10-30-42z"/></g>
-                  <motion.path d="M165 122 Q345 4 553 126" fill="none" stroke="url(#attackArc)" strokeWidth="1.5" strokeDasharray="5 6" initial={{ pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: 1 }} transition={{ duration: 2, repeat: Infinity, repeatType: "reverse" }}/>
-                  <motion.path d="M675 253 Q500 54 266 177" fill="none" stroke="url(#attackArc)" strokeWidth="1.2" strokeDasharray="4 7" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 3, repeat: Infinity, repeatType: "reverse", delay: .4 }}/>
-                  {[[165,122,"critical"],[553,126,"high"],[266,177,"medium"],[675,253,"high"],[498,219,"critical"]].map(([cx, cy, severity], index) => <g key={index}><circle cx={cx} cy={cy} r="33" fill="url(#mapGlow)"/><motion.circle cx={cx} cy={cy} r="5" className={`map-node ${severity}`} animate={{ r: [4, 7, 4], opacity: [.75, 1, .75] }} transition={{ duration: 2.2, repeat: Infinity, delay: index * .22 }}/></g>)}
-                </svg>
-                <div className="map-legend"><span><i className="critical" /> Critical</span><span><i className="high" /> High</span><span><i className="medium" /> Medium</span></div>
-                <div className="map-readout"><Activity size={14} /><div><b>{pulse.toLocaleString()}</b><span>EVENTS / MIN</span></div></div>
-              </div>
-              <div className="region-strip">{overview.regions.map((region) => <div key={region.name}><span className={`risk-dot ${region.risk}`} /> <b>{region.name}</b><strong>{region.events}</strong></div>)}</div>
-            </article>
-
-            <article className="glass-card queue-card">
-              <div className="card-title-row"><div><p className="card-kicker">ANALYST FOCUS</p><h2>{t.queue}</h2></div><button className="link-button">View all</button></div>
-              <div className="queue-list">{priorityItems.map((item) => <button className="queue-item" key={item.title}><span className={`severity-bar ${item.severity}`} /><div className="queue-content"><div><span className={`severity-label ${item.severity}`}>{item.severity}</span><time>{item.time}</time></div><strong>{item.title}</strong><p>{item.detail}</p></div><div className="queue-score">{item.score}</div></button>)}</div>
-              <button className="triage-button"><Zap size={16} /> Start guided triage</button>
-            </article>
-          </section>
-
-          <section className="lower-grid">
-            <article className="glass-card timeline-card">
-              <div className="card-title-row"><div><p className="card-kicker">LAST 24 HOURS</p><h2>Attack signal timeline</h2></div><div className="chart-key"><span><i /> Events</span><span><i /> Risk</span></div></div>
-              <div className="chart-wrap"><ResponsiveContainer width="100%" height="100%"><AreaChart data={overview.attack_timeline} margin={{ top: 8, left: -24, right: 3, bottom: 0 }}><defs><linearGradient id="areaGradient" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#22d3ee" stopOpacity=".36"/><stop offset="100%" stopColor="#22d3ee" stopOpacity="0"/></linearGradient></defs><XAxis dataKey="hour" axisLine={false} tickLine={false} tick={{ fill: "#6f829f", fontSize: 11 }}/><YAxis axisLine={false} tickLine={false} tick={{ fill: "#6f829f", fontSize: 11 }} /><Tooltip contentStyle={{ background: "#10192a", border: "1px solid #24354f", borderRadius: 10 }} labelStyle={{ color: "#d6e5f5" }} itemStyle={{ color: "#6ee7f9" }} /><Area type="monotone" dataKey="events" stroke="#22d3ee" strokeWidth={2} fill="url(#areaGradient)" /><Area type="monotone" dataKey="risk" stroke="#a78bfa" strokeWidth={1.5} fill="transparent" /></AreaChart></ResponsiveContainer></div>
-            </article>
-
-            <article className="glass-card chain-card">
-              <div className="card-title-row"><div><p className="card-kicker">MITRE ATT&CK</p><h2>Observed attack chain</h2></div><button className="icon-button compact" aria-label="Open intelligence graph"><Network size={16} /></button></div>
-              <div className="attack-chain">{tactics.map(([phase, id, behavior, state], index) => <div className="chain-row" key={phase}><span className={`chain-node ${state}`}><span>{index + 1}</span></span><div><b>{phase}</b><strong>{behavior}</strong><small>{id}</small></div>{index < tactics.length - 1 && <i className="chain-link" />}</div>)}</div>
-            </article>
-          </section>
-
-          <section className="assistant-section">
-            <article className="assistant-card">
-              <div className="assistant-orb"><Bot size={20} /></div>
-              <div className="assistant-heading"><div><p className="card-kicker">CONTEXT-AWARE · SOURCE-GROUNDED</p><h2>{t.assistant}</h2></div><span className="ready-indicator"><i /> Ready</span></div>
-              <p className="assistant-answer">{isThinking ? "Reviewing the selected investigation context…" : assistantReply}</p>
-              <form className="assistant-form" onSubmit={askAssistant}><Sparkles size={17} /><input value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t.ask} aria-label={t.ask} /><button type="submit" disabled={isThinking}>{isThinking ? "Thinking" : t.synthesize}</button></form>
-              <div className="assistant-suggestions"><span>Try:</span><button type="button" onClick={() => setPrompt("Summarize the critical credential exposure alert.")}>Summarize credential exposure</button><button type="button" onClick={() => setPrompt("Explain the risk and mitigation for the newest CVE.")}>Explain latest CVE</button></div>
-            </article>
-          </section>
-        </div>
-      </section>
-    </main>
-  );
+export function DarkTraceDashboard({commandCenter=false,initialFeature="overview"}:{commandCenter?:boolean;initialFeature?:FeatureKey}) {
+  const [language,setLanguage]=useState<Language>("en"); const [light,setLight]=useState(false);
+  const [user,setUser]=useState<User|null>(null); const [checking,setChecking]=useState(true);
+  const [mode,setMode]=useState<"login"|"register">("login"); const [tenant,setTenant]=useState(""); const [email,setEmail]=useState(""); const [password,setPassword]=useState(""); const [name,setName]=useState("");
+  const [busy,setBusy]=useState(false); const [authError,setAuthError]=useState("");
+  const [active,setActive]=useState<FeatureKey>(initialFeature); const [mobileNavOpen,setMobileNavOpen]=useState(false);
+  const [overview,setOverview]=useState(empty); const [alerts,setAlerts]=useState<Alert[]>([]); const [error,setError]=useState(""); const [updated,setUpdated]=useState("");
+  const [question,setQuestion]=useState(""); const [answer,setAnswer]=useState("Ask a question to analyze your recorded alerts and indicators."); const [thinking,setThinking]=useState(false);
+  const [conversation,setConversation]=useState<string|undefined>();
+  const t=copy[language];
+  useEffect(()=>{document.documentElement.classList.toggle("light",light);document.documentElement.lang=language},[language,light]);
+  useEffect(()=>{
+    let mounted=true;
+    apiRequest<User>(localApiUrl(),"/auth/me").then(u=>{if(mounted)setUser(u)}).catch(e=>{if(mounted)setAuthError(e.message)}).finally(()=>{if(mounted)setChecking(false)});
+    const expired=()=>{localStorage.removeItem("darktracex_access_token");setUser(null);setOverview(empty);setAlerts([]);setAnswer("Sign in again to continue.");setConversation(undefined);setMobileNavOpen(false);};
+    window.addEventListener("darktracex:expired",expired); return()=>{mounted=false;window.removeEventListener("darktracex:expired",expired)};
+  },[]);
+  useEffect(()=>{
+    if(!user)return;
+    let cancelled=false;
+    async function load(){try{const [o,a]=await Promise.all([apiRequest<DashboardOverview>(localApiUrl(),"/dashboard/overview"),apiRequest<Alert[]>(localApiUrl(),"/operational-alerts")]);if(!cancelled){setOverview(o);setAlerts(a);setError("");setUpdated(new Date().toLocaleTimeString());}}catch(e){if(!cancelled)setError(e instanceof Error?e.message:"Unable to refresh telemetry");}}
+    void load();const timer=setInterval(load,15000);return()=>{cancelled=true;clearInterval(timer)};
+  },[user]);
+  function open(feature:FeatureKey){setActive(feature);setMobileNavOpen(false);}
+  async function authenticate(event:FormEvent){event.preventDefault();setBusy(true);setAuthError("");try{await apiRequest<{access_token:string}>(localApiUrl(),`/auth/${mode}`,{method:"POST",headers:{"X-Browser-Session":"1"},body:JSON.stringify({email,password,tenant_id:tenant,...(mode==="register"?{display_name:name}:{})})});localStorage.removeItem("darktracex_access_token");const u=await apiRequest<User>(localApiUrl(),"/auth/me");setUser(u);setAnswer("Ask a question to analyze your recorded alerts and indicators.");setPassword("");setActive(initialFeature);}catch(e){setAuthError(e instanceof Error?e.message:"Authentication failed");}finally{setBusy(false);}}
+  async function logout(){try{await apiRequest(localApiUrl(),"/auth/logout",{method:"POST"});window.dispatchEvent(new Event("darktracex:expired"));}catch(e){setError(e instanceof Error?e.message:"Sign out failed; please retry");}}
+  async function ask(event:FormEvent){event.preventDefault();if(!question.trim())return;setThinking(true);try{const response=await apiRequest<{message:string;provider:string;model:string;conversation_id:string}>(localApiUrl(),"/ai/chat",{method:"POST",body:JSON.stringify({message:question,language,conversation_id:conversation})});setAnswer(`${response.message}\n\n${response.provider} · ${response.model}`);setConversation(response.conversation_id);setQuestion("");}catch(e){setAnswer(e instanceof Error?e.message:"AI service unavailable");}finally{setThinking(false);}}
+  if(checking)return <main className="auth-page"><div className="auth-dialog">Checking your session…</div></main>;
+  if(!user)return <main className="auth-page"><form className="auth-dialog" onSubmit={authenticate}><p>DARKTRACE X · SECURE WORKSPACE</p><h1>{mode==="login"?"Welcome back":"Create your workspace"}</h1><span>{mode==="login"?"Sign in to your organization’s intelligence workspace.":"Your first account becomes the workspace administrator."}</span><label>Workspace ID<input required minLength={2} maxLength={80} pattern="[a-zA-Z0-9_\-]+" value={tenant} onChange={e=>setTenant(e.target.value)} placeholder="your-organization" autoComplete="organization"/></label>{mode==="register"&&<label>Your name<input required minLength={2} value={name} onChange={e=>setName(e.target.value)} autoComplete="name"/></label>}<label>Email<input type="email" required value={email} onChange={e=>setEmail(e.target.value)} autoComplete="username"/></label><label>Password<input type="password" required minLength={mode==="register"?12:1} value={password} onChange={e=>setPassword(e.target.value)} autoComplete={mode==="register"?"new-password":"current-password"}/></label>{authError&&<div role="alert" className="module-notice error">{authError}</div>}<button disabled={busy}>{busy?"Working…":mode==="login"?"Sign in":"Create workspace"}</button><button type="button" className="auth-switch" onClick={()=>{setMode(mode==="login"?"register":"login");setAuthError("")}}>{mode==="login"?"Create a new workspace":"Already registered? Sign in"}</button></form></main>;
+  const queue=alerts.filter(a=>!["resolved","false_positive"].includes(a.status)).sort((a,b)=>b.score-a.score);
+  return <main className="app-shell"><aside className={`sidebar ${mobileNavOpen?"mobile-open":""}`}><div className="brand-lockup"><div className="brand-mark"><Shield size={20}/></div><div><span className="brand-name">DARKTRACE</span><span className="brand-x">X</span></div></div><div className="tenant-switcher"><span className="tenant-dot"/><span>{user.tenant_id}</span></div><nav className="primary-nav" aria-label="Primary navigation"><p className="nav-caption">OPERATIONS</p>{nav.filter(n=>n.label!=="administration"||user.role==="admin").map(({label,icon:Icon})=><button className={`nav-item ${active===label?"active":""}`} key={label} aria-label={t[label]} title={t[label]} aria-current={active===label?"page":undefined} onClick={()=>open(label)}><Icon size={17}/><span>{t[label]}</span></button>)}</nav><div className="operator-card"><div className="operator-avatar">{user.email.slice(0,2).toUpperCase()}</div><div><strong>{user.email}</strong><span>{user.role}</span></div></div></aside>{mobileNavOpen&&<button className="mobile-nav-backdrop" aria-label="Close navigation" onClick={()=>setMobileNavOpen(false)}/>}<section className="workspace"><header className="topbar"><div className="crumb"><button className="mobile-menu-button" onClick={()=>setMobileNavOpen(v=>!v)} aria-label="Open navigation"><Menu size={18}/></button><span>{user.tenant_id}</span><i>/</i><strong>{t[active]}</strong></div><div className="topbar-actions"><label className="language-picker"><Languages size={15}/><select value={language} onChange={e=>setLanguage(e.target.value as Language)} aria-label="Select interface language">{languageOptions.map(option=><option value={option.code} key={option.code}>{option.nativeLabel} · {option.label}</option>)}</select></label><button className="icon-button" onClick={()=>setLight(!light)} aria-label="Toggle theme">{light?<Moon size={17}/>:<Sun size={17}/>}</button><button className="signin-button" onClick={()=>void logout()}><LogOut size={14}/> Sign out</button></div></header><div className="dashboard-scroll">{active!=="overview"&&<div className="workspace-context-bar"><button className="context-back" onClick={()=>open("overview")} aria-label="Back to overview">← Overview</button><span className="context-eyebrow">SECURE WORKSPACE</span><strong>{t[active]}</strong><span className="context-mode">LIVE · TENANT SCOPED</span></div>}
+  {active!=="overview"?<FeatureWorkspace key={`${user.tenant_id}:${active}`} feature={active} apiBase={localApiUrl()}/>:<><section className="welcome-row"><div><div className="eyebrow">WORKSPACE INTELLIGENCE · {updated?`Updated ${updated}`:"Connecting…"}</div><h1>Defend with <em>clarity.</em></h1><p>Your assets, evidence and investigations in one place.</p></div><div className="posture-chip"><span>Highest open alert risk</span><strong>{overview.risk_score}</strong><small>{overview.active_alerts?"Analyst review required":"No open alerts"}</small></div></section>{error&&<div className="module-notice error" role="alert">{error} · Last successful data remains displayed.</div>}<section className="stat-grid">{[["Registered assets",overview.protected_assets],["Active alerts",overview.active_alerts],["Tracked indicators",overview.iocs_tracked],["Events / minute",overview.event_rate]].map(([label,value])=><article className="stat-card" key={label}><div className="stat-icon cyan"><Activity size={20}/></div><div className="stat-copy"><span>{label}</span><strong>{Number(value).toLocaleString()}</strong><small>Recorded workspace data</small></div></article>)}</section><section className="main-grid"><article className="glass-card timeline-card"><div className="card-title-row"><div><p className="card-kicker">LAST 24 HOURS</p><h2>Telemetry timeline</h2></div><button className="link-button" onClick={()=>open("anomalies")}>Analyze behavior</button></div><div className="chart-wrap"><ResponsiveContainer width="100%" height="100%"><AreaChart data={overview.attack_timeline}><XAxis dataKey="hour"/><YAxis allowDecimals={false}/><Tooltip/><Area dataKey="events" stroke="#22d3ee" fill="#22d3ee22"/></AreaChart></ResponsiveContainer></div>{!overview.attack_timeline.some(p=>p.events>0)&&<p className="empty-state">No observations received. Import telemetry in AI Anomalies.</p>}</article><article className="glass-card queue-card"><div className="card-title-row"><div><p className="card-kicker">ANALYST FOCUS</p><h2>Priority queue</h2></div><button className="link-button" onClick={()=>open("alerts")}>View all</button></div><div className="queue-list">{queue.slice(0,5).map(a=><button className="queue-item" key={a.id} onClick={()=>open("alerts")}><span className={`severity-bar ${a.severity}`}/><div className="queue-content"><span className={`severity-label ${a.severity}`}>{a.severity} · {a.status}</span><strong>{a.title}</strong><time>{new Date(a.created_at).toLocaleString()}</time></div><div className="queue-score">{a.score}</div></button>)}{queue.length===0&&<div className="empty-state">No open alerts. Monitor keywords and ingest a feed or telemetry to collect evidence.</div>}</div></article></section><ThreatMap regions={overview.regions} stale={Boolean(error)}/><section className="assistant-section"><article className="assistant-card"><div className="assistant-heading"><Bot size={24}/><h2>{t.assistant}</h2></div><p className="assistant-answer" style={{whiteSpace:"pre-wrap"}}>{thinking?"Analyzing recorded workspace evidence…":answer}</p><form className="assistant-form" onSubmit={ask}><Sparkles size={18}/><input value={question} onChange={e=>setQuestion(e.target.value)} placeholder={t.ask} aria-label="Ask the SOC assistant"/><button disabled={thinking||!question.trim()}>{thinking?"Thinking…":"Analyze"}</button></form></article></section></>}
+  </div></section><Copilot key={user.user_id} apiBase={localApiUrl()} role={user.role} commandCenter={commandCenter}/></main>;
 }

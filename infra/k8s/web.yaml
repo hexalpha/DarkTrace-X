@@ -16,11 +16,16 @@ spec:
   template:
     metadata: { labels: { app: darktracex-web } }
     spec:
-      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      automountServiceAccountToken: false
+      securityContext: { runAsNonRoot: true, runAsUser: 10001, fsGroup: 10001, seccompProfile: { type: RuntimeDefault } }
       containers:
         - name: web
           image: registry.example/darktracex/web:replace-with-digest
           ports: [{ name: http, containerPort: 3000 }]
+          env: [{ name: HOSTNAME, value: "0.0.0.0" }]
+          readinessProbe: { httpGet: { path: /, port: http }, initialDelaySeconds: 5 }
+          livenessProbe: { httpGet: { path: /, port: http }, initialDelaySeconds: 15 }
+          volumeMounts: [{ name: cache, mountPath: /app/.next/cache }, { name: tmp, mountPath: /tmp }]
           resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 500m, memory: 512Mi } }
           securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: ["ALL"] } }
-
+      volumes: [{ name: cache, emptyDir: {} }, { name: tmp, emptyDir: {} }]
