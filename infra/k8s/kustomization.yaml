@@ -2,6 +2,8 @@ namespace: darktracex
 resources:
   - namespace.yaml
   - api.yaml
+  - llm.yaml
   - web.yaml
   - ingress.yaml
-
+  - scaling.yaml
+  - networkpolicy.yaml

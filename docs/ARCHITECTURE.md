@@ -1,52 +1,15 @@
 # DarkTrace X architecture
 
-DarkTrace X separates the operator-facing **experience plane**, the tenant-aware **intelligence control plane**, and the isolated **data/enrichment plane**. This keeps incoming untrusted intelligence, provider credentials, and analyst sessions from sharing a trust boundary.
+Next.js provides the authenticated analyst dashboard, feature workspaces and persistent floating copilot. /ai-command-center opens the expanded copilot using the same authentication gate. Nginx forwards REST and streaming traffic to FastAPI; GraphQL and WebSocket are separate API entry points.
 
-```mermaid
-flowchart LR
-  Analyst["Analyst / Admin"] --> Edge["Nginx + WAF / OIDC"]
-  Edge --> Web["Next.js Console\nDashboard · Graph · Reports"]
-  Edge --> API["FastAPI Control Plane\nREST · GraphQL · WebSocket"]
+FastAPI validates locally issued JWTs against current PostgreSQL users, tenant activity and revocation records. Viewer, analyst, lead and administrator permissions remain enforced by the existing dependencies. PostgreSQL stores users, intelligence, alerts, source evidence, telemetry, conversations and copilot configuration. Elasticsearch holds tenant-scoped IOC and actor indexes. Redis backs copilot rate limits and per-user generation leases.
 
-  API --> Auth["RBAC + Tenant Context\nAudit Middleware"]
-  API --> Intel["Intel Service\nIOCs · CVEs · Alerts · Cases"]
-  API --> AI["AI Gateway\nPolicy · Memory · Failover"]
-  API --> Queue["Redis Streams\nJobs · Notifications"]
-  API --> PG[("PostgreSQL + pgvector\nSystem of record")]
-  API --> Search[("Elasticsearch\nSearch / timeline")]
+The copilot extends existing services through explicit read-only tools: alerts, IOC records, CVEs, feeds, actors, health, mentions, events, assets, project knowledge and live CISA retrieval. It cannot execute shell commands, Python, SQL, arbitrary filesystem reads or administrative operations. Tool arguments do not accept tenant IDs. The caller supplies tenant/user scope through authentication.
 
-  Intel --> Workers["Isolated Enrichment Workers"]
-  Workers --> Approved["Approved feeds / OSINT / internal telemetry"]
-  Workers --> PG
-  Workers --> Search
-  AI --> Providers["OpenAI · Gemini · Claude · Groq\nOpenRouter · Local / custom LLM"]
-  Queue --> Integrations["Email · Slack · Discord · Telegram · Webhooks"]
-```
+One isolated inference worker loads the configured GGUF once and serializes requests. It resets model KV state per request and accepts only API-authenticated internal calls. Generation is streamed through the API with cancellation and timeouts. CPU inference is always supported by the default image. GPU offload is attempted only when the installed backend supports it; failed GPU loading falls back to CPU. The supplied CPU build is not proof of GPU acceleration.
 
-## Defensive data lifecycle
+The unified copilot gateway supports local GGUF, Ollama, LM Studio, OpenAI, Gemini, Anthropic, Groq, OpenRouter and custom compatible endpoints. Tenant administrators configure primary/fallback/offline slots. Cloud transmission is opt-in per request. Stored provider keys are encrypted; existing environment keys are referenced without returning them to the browser. The legacy AI endpoints remain available for compatibility.
 
-```mermaid
-sequenceDiagram
-  participant F as Approved source / connector
-  participant W as Isolated worker
-  participant C as Correlation engine
-  participant A as Analyst console
-  participant S as AI SOC assistant
-  F->>W: Signed/polled intelligence item
-  W->>W: Validate schema, provenance, allowlist, rate limits
-  W->>C: Normalized observable + source confidence
-  C->>C: Deduplicate, enrich, score, MITRE/CVE map
-  C-->>A: Tenant-scoped alert/event
-  A->>S: Analyst asks for defensive summary
-  S-->>A: Grounded explanation with confidence and sources
-  C->>A: Immutable audit event and case timeline
-```
+Project RAG uses lexical TF-IDF retrieval from an explicit documentation allowlist; it does not crawl the filesystem or index .env files. Notifications come from real high/critical operational alerts or failed service probes, with persistent deduplication, source cooldown and user mute/snooze controls. Source dates and retrieval timestamps accompany retrieved intelligence. No licensed dark-web collector is configured; imported approved evidence can be analyzed.
 
-## Design decisions
-
-- **Tenant boundary first:** every persisted intelligence object contains `tenant_id`; enforce it with PostgreSQL RLS in production and a request-scoped database role.
-- **Provenance over volume:** raw source record, collection time, source terms, confidence, and transformation history are retained with each indicator.
-- **AI is an assistive layer:** model calls are policy-scoped, sources are supplied as context, results are labeled as generated, and failover ends with an explicit unavailable status—never a fictional conclusion.
-- **Async by default:** ingest, enrichment, export, and notifications run through queues so analyst interactions stay fast.
-- **Zero trust between planes:** use workload identity, mTLS, egress allowlists, encrypted queues, and a dedicated secret manager in production.
-
+Not implemented: OIDC/SAML/MFA, PostgreSQL RLS, immutable audit storage, arbitrary third-party extensions, scheduled reports/webhook delivery workers, geographic threat enrichment or autonomous dark-web crawling. These are not implied by the presence of infrastructure manifests.

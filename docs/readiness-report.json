@@ -1,0 +1,449 @@
+{
+  "generated_at": "2026-09-16T10:30:09.183165+00:00",
+  "status": "PARTIALLY READY",
+  "production_ready": false,
+  "readiness_percentage": 76.87,
+  "scoring": {
+    "method": "Equal-weight verified capability checklist; PASS=1 PARTIAL=0.5 FAIL/NOT TESTED=0. This is coverage, not a probability or security certification.",
+    "earned_points": 51.5,
+    "possible_points": 67,
+    "counts": {
+      "PASS": 44,
+      "PARTIAL": 15,
+      "FAIL": 1,
+      "NOT TESTED": 7
+    }
+  },
+  "features": [
+    {
+      "feature": "Frontend production build",
+      "status": "PASS",
+      "reason": "Optimized Next.js build completed locally and in Docker, including /ai-command-center; final PostCSS override build passed."
+    },
+    {
+      "feature": "TypeScript",
+      "status": "PASS",
+      "reason": "pnpm typecheck exited 0."
+    },
+    {
+      "feature": "Lint",
+      "status": "PASS",
+      "reason": "pnpm lint exited 0 with no project lint warnings. Next build notes that its optional framework ESLint plugin is not configured."
+    },
+    {
+      "feature": "Backend startup and REST routes",
+      "status": "PASS",
+      "reason": "FastAPI startup and authenticated REST workflows verified through Nginx."
+    },
+    {
+      "feature": "Python compilation and unit tests",
+      "status": "PASS",
+      "reason": "Backend compilation passed; the prior deployed Docker suite had 28 backend tests and 3 model-worker fault tests, and 4 new webhook/report-schedule validation tests pass locally. Docker rebuild of the latest API change is pending host usage approval."
+    },
+    {
+      "feature": "Authentication and logout",
+      "status": "PASS",
+      "reason": "Live registration/login/logout/revocation tested; expired, missing-claim, wrong issuer/audience and unsigned token tests passed."
+    },
+    {
+      "feature": "RBAC",
+      "status": "PASS",
+      "reason": "Live role changes take effect on existing sessions; viewer model writes and knowledge reindex return 403."
+    },
+    {
+      "feature": "Tenant and user isolation",
+      "status": "PASS",
+      "reason": "Two isolated live workspaces tested across IOC, graph, actors, alerts, tools, conversations and notifications; unauthorized conversation access returns 404."
+    },
+    {
+      "feature": "PostgreSQL",
+      "status": "PASS",
+      "reason": "Real connection, writes, deletes, scoped reads and readiness verified."
+    },
+    {
+      "feature": "Redis",
+      "status": "PASS",
+      "reason": "Real ping, request counters and active-generation lease checks passed; memory mutation rejects an active generation."
+    },
+    {
+      "feature": "Elasticsearch",
+      "status": "PASS",
+      "reason": "Real connection and tenant-scoped IOC correlation/graph queries passed."
+    },
+    {
+      "feature": "WebSocket",
+      "status": "PASS",
+      "reason": "Authenticated /ws/events delivered a telemetry.pulse through Nginx."
+    },
+    {
+      "feature": "GraphQL",
+      "status": "PASS",
+      "reason": "Authenticated dashboard query passed through Nginx; anonymous query returned 401."
+    },
+    {
+      "feature": "Local GGUF loading",
+      "status": "PASS",
+      "reason": "The supplied 2,497,277,408-byte Qwen GGUF loaded once in the persistent worker; ONLINE on CPU."
+    },
+    {
+      "feature": "Local inference",
+      "status": "PASS",
+      "reason": "Actual answer after chat-template fix: PostgreSQL is connected. A verified API response took 20,773 ms; browser response took about 24.4 seconds."
+    },
+    {
+      "feature": "GPU acceleration",
+      "status": "PARTIAL",
+      "reason": "Backend capability detection and simulated GPU allocation failure/CPU retry pass. Actual CUDA/GPU inference was not tested; bundled image is CPU-only."
+    },
+    {
+      "feature": "Missing/corrupt model handling",
+      "status": "PASS",
+      "reason": "Separate missing-file container returned OFFLINE; simulated corrupt-model load returned ERROR without crashing the API."
+    },
+    {
+      "feature": "Unified AI gateway",
+      "status": "PARTIAL",
+      "reason": "New copilot and default legacy dashboard chat share private primary/fallback/offline routing. Explicit legacy-provider requests retain their older environment configuration for compatibility."
+    },
+    {
+      "feature": "Provider adapter protocols",
+      "status": "PARTIAL",
+      "reason": "Fixture parsing tests pass for GGUF, Ollama, Gemini, Anthropic, Groq, OpenRouter, custom and LM Studio. Fixtures do not establish live cloud service compatibility; OpenAI Responses has no dedicated streaming fixture."
+    },
+    {
+      "feature": "Provider fallback and privacy",
+      "status": "PASS",
+      "reason": "Tests cover cloud opt-in, local-only fallback, unreadable encrypted-key fallback and no second answer after partial generation failure."
+    },
+    {
+      "feature": "OpenAI live completion",
+      "status": "FAIL",
+      "reason": "The already configured key returned HTTP 429, reason unclassified. No successful cloud completion verified; account/provider quota must be resolved externally."
+    },
+    {
+      "feature": "Gemini live completion",
+      "status": "NOT TESTED",
+      "reason": "No configured working Gemini key available; protocol fixture only."
+    },
+    {
+      "feature": "Anthropic live completion",
+      "status": "NOT TESTED",
+      "reason": "No configured working Anthropic key available; protocol fixture only."
+    },
+    {
+      "feature": "Groq live completion",
+      "status": "NOT TESTED",
+      "reason": "No configured working Groq key available; protocol fixture only."
+    },
+    {
+      "feature": "OpenRouter live completion",
+      "status": "NOT TESTED",
+      "reason": "No configured working OpenRouter key available; protocol fixture only."
+    },
+    {
+      "feature": "Custom endpoint live completion",
+      "status": "NOT TESTED",
+      "reason": "No configured authorized custom service available; protocol fixture only."
+    },
+    {
+      "feature": "Ollama live completion",
+      "status": "NOT TESTED",
+      "reason": "No Ollama runtime responded at the configured host endpoint; protocol fixture only."
+    },
+    {
+      "feature": "LM Studio live completion",
+      "status": "PARTIAL",
+      "reason": "Discovery and earlier real completion passed, but the final explicit LM Studio regression timed out (HTTP 503 response_timeout). The built-in GGUF worker is the verified default; optional host-runtime reliability remains unresolved."
+    },
+    {
+      "feature": "Streaming chat",
+      "status": "PASS",
+      "reason": "Real local generation delivered SSE deltas, sources, completion and persisted messages through Nginx and the browser."
+    },
+    {
+      "feature": "Floating assistant and responsive workspace",
+      "status": "PASS",
+      "reason": "Authenticated floating panel, minimize/expand and desktop/mobile layout inspected. /ai-command-center is included in the production build. The latest source locks the sidebar and topbar to the viewport, gives the workspace its own scroll surface, and adds a mobile navigation drawer; the updated image should be rebuilt before live browser recheck."
+    },
+    {
+      "feature": "Conversation history/search",
+      "status": "PASS",
+      "reason": "Live messages persisted; history search matched; cross-tenant reads/deletes rejected. Browser history survived container recreation."
+    },
+    {
+      "feature": "Stop and regenerate controls",
+      "status": "PASS",
+      "reason": "Browser Stop cancelled a generation; regeneration of the persisted local conversation completed with source attribution in 25.8 seconds. Cross-provider cancellation stress testing remains part of the untested load exercise."
+    },
+    {
+      "feature": "Markdown/code/copy rendering",
+      "status": "PARTIAL",
+      "reason": "Safe Markdown pipeline, code highlighting and copy control implemented; real prose rendering inspected. Comprehensive malicious-Markdown/browser clipboard tests not performed."
+    },
+    {
+      "feature": "Memory controls",
+      "status": "PASS",
+      "reason": "Scoped preferences/redaction/deletion and disabled legacy chat persistence passed; active generation prevents deletion races. Audit records are intentionally retained."
+    },
+    {
+      "feature": "Provider configuration and secret storage",
+      "status": "PASS",
+      "reason": "Live admin settings, encrypted ciphertext storage, secret-presence-only reads and validation non-echo verified; terminal helper supports hidden key entry."
+    },
+    {
+      "feature": "Project knowledge/RAG",
+      "status": "PASS",
+      "reason": "Explicit allowlist and lexical retrieval verified; .env exclusion tested. API and schema docs corrected to actual implementation. This is lexical retrieval, not vector embeddings."
+    },
+    {
+      "feature": "SOC tools/function calling",
+      "status": "PARTIAL",
+      "reason": "Strict read-only tools, bounded arguments, authenticated data retrieval and forbidden tool rejection verified. Autonomous multi-round model tool selection has not received a full semantic evaluation."
+    },
+    {
+      "feature": "AI proactive notifications",
+      "status": "PASS",
+      "reason": "Real scoped operational alert generated a notification; snooze, mute, dismiss/resolve authorization and event-only behavior verified."
+    },
+    {
+      "feature": "Outbound webhook delivery",
+      "status": "PARTIAL",
+      "reason": "Admin HTTPS subscriptions, encrypted signing secrets, SSRF protection, severity/event filters, signed payloads and failure tracking are implemented with unit validation. The updated API image could not be rebuilt/live-tested in this turn because Docker approval is blocked by the host usage limit; external receiver delivery remains unverified."
+    },
+    {
+      "feature": "Notification deduplication",
+      "status": "PASS",
+      "reason": "Repeated and concurrent polling produced one notification; per-user database serialization enforces cooldown decisions. Sustained multi-user rate-load testing not performed."
+    },
+    {
+      "feature": "Ask AI alert explanation",
+      "status": "PARTIAL",
+      "reason": "Alert-center button and structured authorized alert lookup implemented. Full incident-quality/MITRE explanation evaluation not performed; model assessments remain untrusted."
+    },
+    {
+      "feature": "Live intelligence",
+      "status": "PASS",
+      "reason": "Actual CISA retrieval returned records, source URL and retrieval timestamp. Coverage is CISA KEV, not comprehensive current cybersecurity news."
+    },
+    {
+      "feature": "Dark-web monitoring pipeline",
+      "status": "PARTIAL",
+      "reason": "Approved evidence import, keyword matches, provenance, deduplication and tenant isolation passed. No licensed live dark-web collector exists; live coverage is UNAVAILABLE."
+    },
+    {
+      "feature": "Threat feed ingestion",
+      "status": "PASS",
+      "reason": "Real CISA ingestion retrieved 1,710 source records during the full smoke workflow; no generated production detections."
+    },
+    {
+      "feature": "IOC functionality and correlation",
+      "status": "PASS",
+      "reason": "Persistence, exact correlation, source metadata and tenant isolation passed with real PostgreSQL/Elasticsearch."
+    },
+    {
+      "feature": "CVE dashboard",
+      "status": "PASS",
+      "reason": "Real CISA records displayed; missing CVSS/EPSS values are not fabricated. This is not a complete NVD/asset-version matching service."
+    },
+    {
+      "feature": "Reports",
+      "status": "PASS",
+      "reason": "Authenticated PDF, DOCX and XLSX outputs returned expected file signatures and recorded evidence. Pixel-by-pixel layout review not repeated in this audit."
+    },
+    {
+      "feature": "Threat map data",
+      "status": "PASS",
+      "reason": "Source-reported telemetry coordinates are validated, tenant/time scoped and plotted on a latitude/longitude grid. Real database replay counts, provenance and tenant isolation passed; browser import and empty/populated views verified. No automatic IP geolocation or verified attacker-origin claim."
+    },
+    {
+      "feature": "Intelligence graph and actors",
+      "status": "PASS",
+      "reason": "Persisted IOC relationships and analyst-supplied actor records passed tenant-scoped live tests."
+    },
+    {
+      "feature": "AI anomaly detection",
+      "status": "PASS",
+      "reason": "Statistical baselines, spikes, cold start, stale evidence, entity isolation and telemetry-to-alert flow passed. No machine-learning accuracy claim is made."
+    },
+    {
+      "feature": "Predictive threat engine",
+      "status": "PARTIAL",
+      "reason": "Evidence-linked trend forecast and persistence pass. Forecast is not a calibrated probability or independently validated prediction of future attacks."
+    },
+    {
+      "feature": "MCP integration",
+      "status": "PASS",
+      "reason": "Authenticated built-in read-only MCP lifecycle, schemas, tool execution and tenant isolation passed."
+    },
+    {
+      "feature": "Plugin marketplace",
+      "status": "PARTIAL",
+      "reason": "Three real built-in extensions install/enable/disable/execute correctly. Arbitrary third-party plugin distribution, signing and sandboxing are not implemented."
+    },
+    {
+      "feature": "Audit logging",
+      "status": "PASS",
+      "reason": "Authentication/operations/copilot changes write scoped audit records. Immutable external audit retention is not configured."
+    },
+    {
+      "feature": "Observability",
+      "status": "PARTIAL",
+      "reason": "Persistent latency/usage/tool history, event metrics and health are implemented. Local token counts are unavailable, not estimated; production scrape/retention/load monitoring not deployed."
+    },
+    {
+      "feature": "Health endpoints",
+      "status": "PASS",
+      "reason": "Live/readiness and authenticated copilot dependency/model status endpoints verified."
+    },
+    {
+      "feature": "Docker images and Compose",
+      "status": "PASS",
+      "reason": "API, web and local-LLM images built; all seven services started. API/web/worker run as non-root. Compose validation passed."
+    },
+    {
+      "feature": "Nginx configuration",
+      "status": "PASS",
+      "reason": "nginx -t passed; REST/SSE/WebSocket/GraphQL paths verified. Gateway binds only to 127.0.0.1:8080."
+    },
+    {
+      "feature": "Database migrations",
+      "status": "PARTIAL",
+      "reason": "Additive SQLAlchemy create_all bootstrap works, including copilot_records. Versioned upgrade/rollback migrations are absent."
+    },
+    {
+      "feature": "Persistent volumes",
+      "status": "PASS",
+      "reason": "Existing PostgreSQL/Redis/Elasticsearch named volumes preserved across recreation; saved QA conversation survived. Disaster recovery restore was not tested."
+    },
+    {
+      "feature": "Environment configuration",
+      "status": "PASS",
+      "reason": "Configurable model/runtime settings, generated persistent worker/encryption/signing keys and non-overwriting setup verified. Secrets are not returned in reports."
+    },
+    {
+      "feature": "Frontend dependency audit",
+      "status": "PASS",
+      "reason": "PostCSS upgraded via override to 8.5.28; final pnpm production audit reports zero known vulnerabilities."
+    },
+    {
+      "feature": "Backend dependency audit",
+      "status": "PASS",
+      "reason": "Patched FastAPI/Starlette/PyJWT/pip image scanned after remediation; see security verification evidence below."
+    },
+    {
+      "feature": "Basic application security",
+      "status": "PARTIAL",
+      "reason": "RBAC, scoped queries, strict schemas, rate limits, size limits, redaction and encrypted provider keys tested. TLS, SSO/MFA, RLS, immutable audit and a penetration test remain outstanding."
+    },
+    {
+      "feature": "Kubernetes deployment",
+      "status": "PARTIAL",
+      "reason": "Eight YAML resources parse, including a non-root local GGUF worker Deployment, protected model PVC, separate worker-secret contract and API-to-worker NetworkPolicy. No cluster rollout, TLS, external-secret, network-policy enforcement or GPU scheduling test."
+    },
+    {
+      "feature": "Production load/backup recovery",
+      "status": "NOT TESTED",
+      "reason": "No representative concurrency benchmark, failover exercise or database restore environment supplied."
+    },
+    {
+      "feature": "No fake production intelligence",
+      "status": "PASS",
+      "reason": "Empty workspaces remain empty; CISA data is sourced; test evidence is isolated and cleaned. Unavailable integrations are labeled."
+    }
+  ],
+  "run_commands": [
+    "cd \"D:\\CyArt\\DARKTRACE X\"",
+    "python scripts/setup_copilot.py",
+    "docker compose --env-file .env.local up -d --build --wait",
+    "docker compose ps",
+    "docker compose -f docker-compose.yml -f docker-compose.verify.yml run --rm --no-deps verify python -m unittest discover -s tests -v",
+    "docker compose -f docker-compose.yml -f docker-compose.verify.yml run --rm --no-deps verify python -m scripts.verify_copilot",
+    "docker compose -f docker-compose.yml -f docker-compose.verify.yml run --rm --no-deps verify python -m scripts.smoke_workspace"
+  ],
+  "services": [
+    {
+      "service": "Dashboard / gateway",
+      "url": "http://localhost:8080/",
+      "published": true
+    },
+    {
+      "service": "AI Command Center",
+      "url": "http://localhost:8080/ai-command-center",
+      "published": true
+    },
+    {
+      "service": "REST",
+      "url": "http://localhost:8080/api/v1",
+      "published": true
+    },
+    {
+      "service": "GraphQL",
+      "url": "http://localhost:8080/graphql",
+      "published": true
+    },
+    {
+      "service": "WebSocket",
+      "url": "ws://localhost:8080/ws/events",
+      "published": true
+    },
+    {
+      "service": "API",
+      "url": "http://api:8000",
+      "published": false
+    },
+    {
+      "service": "Web",
+      "url": "http://web:3000",
+      "published": false
+    },
+    {
+      "service": "GGUF worker",
+      "url": "http://local-llm:8091",
+      "published": false
+    },
+    {
+      "service": "PostgreSQL",
+      "url": "postgres:5432",
+      "published": false
+    },
+    {
+      "service": "Redis",
+      "url": "redis:6379",
+      "published": false
+    },
+    {
+      "service": "Elasticsearch",
+      "url": "http://elasticsearch:9200",
+      "published": false
+    }
+  ],
+  "required_environment": [
+    "JWT_SECRET",
+    "DATABASE_URL",
+    "REDIS_URL",
+    "ELASTICSEARCH_URL",
+    "COPILOT_WORKER_KEY",
+    "AI_SECRET_KEY",
+    "LOCAL_LLM_ENABLED",
+    "LOCAL_LLM_MODEL_PATH",
+    "LOCAL_LLM_SERVICE_URL",
+    "LOCAL_LLM_CONTEXT_SIZE",
+    "LOCAL_LLM_THREADS",
+    "LOCAL_LLM_GPU_LAYERS",
+    "LOCAL_LLM_TEMPERATURE",
+    "LOCAL_LLM_MAX_TOKENS",
+    "PROJECT_KNOWLEDGE_ROOT"
+  ],
+  "optional_environment": [
+    "LOCAL_LLM_CHAT_FORMAT",
+    "AI_ENDPOINT_ALLOWLIST",
+    "OPENAI_API_KEY",
+    "GEMINI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "GROQ_API_KEY",
+    "OPENROUTER_API_KEY",
+    "CUSTOM_LLM_API_KEY",
+    "LM_STUDIO_BASE_URL",
+    "OLLAMA_BASE_URL"
+  ]
+}

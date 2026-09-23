@@ -9,6 +9,5 @@ export type DashboardOverview = {
   enrichment_coverage: number;
   event_rate: number;
   attack_timeline: TimelinePoint[];
-  regions: { name: string; events: number; risk: string }[];
+  regions: { name: string; events: number; risk: string; latitude: number; longitude: number; source: string; last_observed_at: string }[];
 };
-

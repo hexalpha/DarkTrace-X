@@ -14,12 +14,20 @@ services:
     build:
       context: ./apps/api
       dockerfile: Dockerfile
-    env_file: .env.local
+    env_file: [.env.local, .runtime/copilot.env, .runtime/api-security.env]
     environment:
-      DATABASE_URL: postgresql+asyncpg://darktrace:darktrace@postgres:5432/darktracex
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:?Set POSTGRES_USER in .env.local}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.local}@postgres:5432/${POSTGRES_DB:-darktracex}
       REDIS_URL: redis://redis:6379/0
       ELASTICSEARCH_URL: http://elasticsearch:9200
+      ELASTICSEARCH_USERNAME: ${ELASTICSEARCH_USERNAME:-elastic}
+      ELASTICSEARCH_PASSWORD: ${ELASTIC_PASSWORD:?Set ELASTIC_PASSWORD in .env.local}
       CORS_ORIGINS: http://localhost:8080,http://localhost:3000
+      LOCAL_LLM_ENABLED: "true"
+      LOCAL_LLM_SERVICE_URL: http://local-llm:8091
+      PROJECT_KNOWLEDGE_ROOT: /knowledge
+    volumes:
+      - ./docs:/knowledge/docs:ro
+      - ./README.md:/knowledge/README.md:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -28,20 +36,42 @@ services:
       elasticsearch:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/live')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/ready')"]
       interval: 15s
       timeout: 5s
       retries: 10
+    networks: [core, egress]
+
+  local-llm:
+    build: ./apps/llm
+    env_file: .runtime/copilot.env
+    environment:
+      LOCAL_LLM_ENABLED: "${LOCAL_LLM_ENABLED:-true}"
+      LOCAL_LLM_MODEL_PATH: /models/selected.gguf
+      LOCAL_LLM_CONTEXT_SIZE: "${LOCAL_LLM_CONTEXT_SIZE:-4096}"
+      LOCAL_LLM_THREADS: "${LOCAL_LLM_THREADS:-4}"
+      LOCAL_LLM_GPU_LAYERS: "${LOCAL_LLM_GPU_LAYERS:--1}"
+      LOCAL_LLM_TEMPERATURE: "${LOCAL_LLM_TEMPERATURE:-0.2}"
+      LOCAL_LLM_MAX_TOKENS: "${LOCAL_LLM_MAX_TOKENS:-512}"
+      LOCAL_LLM_CHAT_FORMAT: "${LOCAL_LLM_CHAT_FORMAT:-}"
+    volumes:
+      - type: bind
+        source: ${LOCAL_LLM_MODEL_PATH:-./qwen3-4b-cybersecurity-heretic-16bit-q4_k_m.gguf}
+        target: /models/selected.gguf
+        read_only: true
+        bind:
+          create_host_path: false
     networks: [core]
+    restart: unless-stopped
 
   postgres:
     image: pgvector/pgvector:pg16
     environment:
-      POSTGRES_DB: darktracex
-      POSTGRES_USER: darktrace
-      POSTGRES_PASSWORD: darktrace
+      POSTGRES_DB: ${POSTGRES_DB:-darktracex}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env.local}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.local}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U darktrace -d darktracex"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -59,23 +89,39 @@ services:
     volumes: [redis-data:/data]
     networks: [core]
 
+  elastic-backup-init:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.16.1
+    user: "0:0"
+    entrypoint: ["sh", "-c", "chown 1000:0 /backups && chmod 0770 /backups"]
+    volumes: [elastic-backups:/backups]
+    network_mode: none
+
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.16.1
+    depends_on:
+      elastic-backup-init:
+        condition: service_completed_successfully
     environment:
       discovery.type: single-node
-      xpack.security.enabled: "false"
+      xpack.security.enabled: "true"
+      xpack.security.http.ssl.enabled: "false"
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:?Set ELASTIC_PASSWORD in .env.local}
+      path.repo: /backups
       ES_JAVA_OPTS: -Xms512m -Xmx512m
     healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      test: ["CMD-SHELL", "curl -fs -u elastic:$${ELASTIC_PASSWORD} http://localhost:9200/_cluster/health || exit 1"]
       interval: 20s
       timeout: 10s
       retries: 12
-    volumes: [elastic-data:/usr/share/elasticsearch/data]
+    volumes:
+      - elastic-data:/usr/share/elasticsearch/data
+      - elastic-backups:/backups
+      - ./infra/elasticsearch/request.sh:/usr/local/bin/dtx-es-request:ro
     networks: [core]
 
   nginx:
     image: nginx:1.27-alpine
-    ports: ["8080:8080"]
+    ports: ["127.0.0.1:8080:8080"]
     volumes:
       - ./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on: [web, api]
@@ -83,6 +129,7 @@ services:
 
 networks:
   edge: {}
+  egress: {}
   core:
     internal: true
 
@@ -90,3 +137,4 @@ volumes:
   postgres-data: {}
   redis-data: {}
   elastic-data: {}
+  elastic-backups: {}

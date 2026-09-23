@@ -17,18 +17,23 @@ spec:
     metadata: { labels: { app: darktracex-api } }
     spec:
       serviceAccountName: darktracex-api
-      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      automountServiceAccountToken: false
+      securityContext: { runAsNonRoot: true, runAsUser: 10001, fsGroup: 10001, seccompProfile: { type: RuntimeDefault } }
       containers:
         - name: api
           image: registry.example/darktracex/api:replace-with-digest
           ports: [{ name: http, containerPort: 8000 }]
           envFrom: [{ secretRef: { name: darktracex-runtime } }]
+          env: [{ name: APP_ENV, value: production }]
+          volumeMounts: [{ name: tmp, mountPath: /tmp }]
+          startupProbe: { httpGet: { path: /api/v1/health/ready, port: http }, failureThreshold: 30, periodSeconds: 5 }
           readinessProbe: { httpGet: { path: /api/v1/health/ready, port: http }, initialDelaySeconds: 5 }
           livenessProbe: { httpGet: { path: /api/v1/health/live, port: http }, initialDelaySeconds: 15 }
           resources: { requests: { cpu: 250m, memory: 512Mi }, limits: { cpu: "1", memory: 1Gi } }
           securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: ["ALL"] } }
+      volumes: [{ name: tmp, emptyDir: {} }]
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata: { name: darktracex-api }
-
+automountServiceAccountToken: false

@@ -1,122 +1,147 @@
 # Database schema
 
-PostgreSQL is the source of truth. Elasticsearch provides derived search/timeline views; Redis carries ephemeral jobs, websocket fan-out, and rate-limit counters. Never treat a search index as the authoritative audit record.
+PostgreSQL is authoritative. Elasticsearch is a derived index. Redis stores copilot rate limits and active-generation leases with expiry; it is not an implemented job queue. Tenant isolation is enforced in application queries, not PostgreSQL RLS. Current startup uses SQLAlchemy create_all for additive table creation; versioned upgrade/downgrade migrations are not implemented.
 
-```mermaid
-erDiagram
-  TENANTS ||--o{ USERS : contains
-  TENANTS ||--o{ INDICATORS : owns
-  TENANTS ||--o{ ALERTS : receives
-  TENANTS ||--o{ CASES : manages
-  TENANTS ||--o{ AI_CONVERSATIONS : owns
-  USERS ||--o{ AUDIT_EVENTS : creates
-  INDICATORS ||--o{ INTEL_SIGHTINGS : appears_in
-  INDICATORS }o--o{ MITRE_TECHNIQUES : maps_to
-  ALERTS }o--o{ INDICATORS : correlates
-  CASES ||--o{ CASE_EVENTS : records
-  AI_CONVERSATIONS ||--o{ AI_MESSAGES : retains
-```
+The following table/column inventory is extracted from the actual SQLAlchemy models. No live row values or credentials are included.
 
-```sql
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-CREATE EXTENSION IF NOT EXISTS vector;
+## copilot_records
 
-CREATE TABLE tenants (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  slug text UNIQUE NOT NULL,
-  name text NOT NULL,
-  plan text NOT NULL DEFAULT 'enterprise',
-  created_at timestamptz NOT NULL DEFAULT now()
-);
+| Column | Python mapped type |
+|---|---|
+| `tenant_id` | `Mapped[str]` |
+| `user_id` | `Mapped[str]` |
+| `kind` | `Mapped[str]` |
+| `id` | `Mapped[str]` |
+| `payload` | `Mapped[dict]` |
+| `updated_at` | `Mapped[datetime]` |
 
-CREATE TABLE users (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL REFERENCES tenants(id),
-  email citext NOT NULL,
-  display_name text NOT NULL,
-  role text NOT NULL CHECK (role IN ('viewer','analyst','lead','admin')),
-  identity_provider text NOT NULL DEFAULT 'oidc',
-  created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (tenant_id, email)
-);
+## tenant_intelligence
 
-CREATE TABLE indicators (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL REFERENCES tenants(id),
-  type text NOT NULL CHECK (type IN ('ip','domain','url','hash','email','file')),
-  value text NOT NULL,
-  normalized_value text NOT NULL,
-  confidence smallint NOT NULL CHECK (confidence BETWEEN 0 AND 100),
-  risk_score smallint NOT NULL CHECK (risk_score BETWEEN 0 AND 100),
-  status text NOT NULL DEFAULT 'active',
-  first_seen timestamptz,
-  last_seen timestamptz,
-  tags text[] NOT NULL DEFAULT '{}',
-  provenance jsonb NOT NULL DEFAULT '[]'::jsonb,
-  created_by uuid REFERENCES users(id),
-  created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (tenant_id, type, normalized_value)
-);
-CREATE INDEX indicators_tenant_risk_idx ON indicators (tenant_id, risk_score DESC);
+| Column | Python mapped type |
+|---|---|
+| `tenant_id` | `Mapped[str]` |
+| `collection` | `Mapped[str]` |
+| `id` | `Mapped[str]` |
+| `payload` | `Mapped[dict]` |
+| `updated_at` | `Mapped[datetime]` |
 
-CREATE TABLE intel_sightings (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL REFERENCES tenants(id),
-  indicator_id uuid REFERENCES indicators(id),
-  source_id text NOT NULL,
-  source_tier smallint NOT NULL CHECK (source_tier BETWEEN 1 AND 5),
-  observed_at timestamptz NOT NULL,
-  raw_ref text,
-  attributes jsonb NOT NULL DEFAULT '{}'::jsonb,
-  retention_until timestamptz
-);
+## revoked_tokens
 
-CREATE TABLE alerts (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL REFERENCES tenants(id),
-  title text NOT NULL,
-  severity text NOT NULL CHECK (severity IN ('critical','high','medium','low','info')),
-  status text NOT NULL DEFAULT 'open',
-  score smallint NOT NULL CHECK (score BETWEEN 0 AND 100),
-  evidence jsonb NOT NULL DEFAULT '[]'::jsonb,
-  mitre_techniques text[] NOT NULL DEFAULT '{}',
-  assigned_to uuid REFERENCES users(id),
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX alerts_tenant_status_idx ON alerts (tenant_id, status, created_at DESC);
+| Column | Python mapped type |
+|---|---|
+| `digest` | `Mapped[str]` |
+| `expires_at` | `Mapped[datetime]` |
 
-CREATE TABLE ai_conversations (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL REFERENCES tenants(id),
-  user_id uuid NOT NULL REFERENCES users(id),
-  title text,
-  classification text NOT NULL DEFAULT 'internal',
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-CREATE TABLE ai_messages (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  conversation_id uuid NOT NULL REFERENCES ai_conversations(id) ON DELETE CASCADE,
-  role text NOT NULL CHECK (role IN ('system','user','assistant','tool')),
-  provider text,
-  model text,
-  content text NOT NULL,
-  source_refs jsonb NOT NULL DEFAULT '[]'::jsonb,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-CREATE TABLE audit_events (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL REFERENCES tenants(id),
-  actor_id uuid REFERENCES users(id),
-  action text NOT NULL,
-  resource_type text NOT NULL,
-  resource_id text,
-  request_id uuid NOT NULL,
-  ip_hash text,
-  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
-  occurred_at timestamptz NOT NULL DEFAULT now()
-);
-```
+## behavior_telemetry
 
-Enable RLS for each tenant-owned table and set a transaction-local tenant id in the API layer. In production, partition high-volume `intel_sightings`, `audit_events`, and timeline tables monthly; encrypt sensitive fields using envelope encryption and keep the KMS key external to PostgreSQL.
+| Column | Python mapped type |
+|---|---|
+| `tenant_id` | `Mapped[str]` |
+| `id` | `Mapped[str]` |
+| `entity` | `Mapped[str]` |
+| `metric` | `Mapped[str]` |
+| `observed_at` | `Mapped[datetime]` |
+| `payload` | `Mapped[dict]` |
 
+## tenant_extensions
+
+| Column | Python mapped type |
+|---|---|
+| `tenant_id` | `Mapped[str]` |
+| `id` | `Mapped[str]` |
+| `enabled` | `Mapped[bool]` |
+| `installed_at` | `Mapped[datetime]` |
+
+## tenants
+
+| Column | Python mapped type |
+|---|---|
+| `id` | `Mapped[str]` |
+| `name` | `Mapped[str]` |
+| `active` | `Mapped[bool]` |
+| `created_at` | `Mapped[datetime]` |
+
+## users
+
+| Column | Python mapped type |
+|---|---|
+| `id` | `Mapped[str]` |
+| `tenant_id` | `Mapped[str]` |
+| `email` | `Mapped[str]` |
+| `display_name` | `Mapped[str]` |
+| `password_hash` | `Mapped[str]` |
+| `role` | `Mapped[str]` |
+| `active` | `Mapped[bool]` |
+| `created_at` | `Mapped[datetime]` |
+
+## keyword_monitors
+
+| Column | Python mapped type |
+|---|---|
+| `id` | `Mapped[str]` |
+| `tenant_id` | `Mapped[str]` |
+| `term` | `Mapped[str]` |
+| `categories` | `Mapped[list[str]]` |
+| `enabled` | `Mapped[bool]` |
+| `created_by` | `Mapped[str]` |
+| `created_at` | `Mapped[datetime]` |
+
+## threat_feed_items
+
+| Column | Python mapped type |
+|---|---|
+| `id` | `Mapped[str]` |
+| `source` | `Mapped[str]` |
+| `external_id` | `Mapped[str]` |
+| `title` | `Mapped[str]` |
+| `summary` | `Mapped[str]` |
+| `severity` | `Mapped[str]` |
+| `published_at` | `Mapped[datetime]` |
+| `raw` | `Mapped[dict]` |
+| `ingested_at` | `Mapped[datetime]` |
+
+## operational_alerts
+
+| Column | Python mapped type |
+|---|---|
+| `id` | `Mapped[str]` |
+| `tenant_id` | `Mapped[str]` |
+| `dedupe_key` | `Mapped[str]` |
+| `title` | `Mapped[str]` |
+| `severity` | `Mapped[str]` |
+| `score` | `Mapped[int]` |
+| `status` | `Mapped[str]` |
+| `evidence` | `Mapped[dict]` |
+| `created_at` | `Mapped[datetime]` |
+
+## audit_events
+
+| Column | Python mapped type |
+|---|---|
+| `id` | `Mapped[str]` |
+| `tenant_id` | `Mapped[str]` |
+| `actor_id` | `Mapped[str]` |
+| `action` | `Mapped[str]` |
+| `resource_type` | `Mapped[str]` |
+| `resource_id` | `Mapped[str]` |
+| `outcome` | `Mapped[str]` |
+| `metadata_json` | `Mapped[dict]` |
+| `occurred_at` | `Mapped[datetime]` |
+
+## conversation_messages
+
+| Column | Python mapped type |
+|---|---|
+| `id` | `Mapped[str]` |
+| `tenant_id` | `Mapped[str]` |
+| `user_id` | `Mapped[str]` |
+| `conversation_id` | `Mapped[str]` |
+| `role` | `Mapped[str]` |
+| `content` | `Mapped[str]` |
+| `provider` | `Mapped[str]` |
+| `model` | `Mapped[str]` |
+| `created_at` | `Mapped[datetime]` |
+
+Copilot records use a composite tenant_id/user_id/kind/id key. Provider settings use the reserved owner tenant and encrypted Fernet key ciphertext. Conversations, preferences, incident context, notifications, tool history and usage are user-scoped kinds. Public threat_feed_items have no tenant ownership because they contain shared CISA advisories. Passwords are hashed. Master encryption keys are outside the database.
+
+Named Docker volumes preserve PostgreSQL, Elasticsearch and Redis across container recreation. Backup/restore and disaster recovery have not been verified.
