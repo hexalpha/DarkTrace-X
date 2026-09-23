@@ -1,0 +1,21 @@
+{
+  "filename": "qwen3-4b-cybersecurity-heretic-16bit-q4_k_m.gguf",
+  "size": 2497277408,
+  "sha256": "69b4e7ba4f0648cb805c5ca0db9375c20bfab137ce65993203099ebad01bc542",
+  "license": "Apache-2.0",
+  "release": "v0.1.0-preview",
+  "parts": [
+    {
+      "filename": "qwen3-4b-cybersecurity-heretic-16bit-q4_k_m.gguf.part001",
+      "size": 1500000000,
+      "sha256": "45673107f6bf97e89afa5d5de9401ae169891774fc93be180b265c0b1f401b72",
+      "url": "https://github.com/hexalpha/DarkTrace-X/releases/download/v0.1.0-preview/qwen3-4b-cybersecurity-heretic-16bit-q4_k_m.gguf.part001"
+    },
+    {
+      "filename": "qwen3-4b-cybersecurity-heretic-16bit-q4_k_m.gguf.part002",
+      "size": 997277408,
+      "sha256": "621e8c76369bebb42cbc7e531269af103fed578da2c1fe83b9c117d8b8be8e28",
+      "url": "https://github.com/hexalpha/DarkTrace-X/releases/download/v0.1.0-preview/qwen3-4b-cybersecurity-heretic-16bit-q4_k_m.gguf.part002"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+title = "DarkTrace X secret scanning"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "curl-auth-user"
+
+[[rules.allowlists]]
+description = "Compose healthcheck reads a runtime variable, not a literal password"
+condition = "AND"
+paths = ['''^docker-compose\.yml$''']
+regexTarget = "secret"
+regexes = ['''^elastic:\$\$\{ELASTIC_PASSWORD\}$''']

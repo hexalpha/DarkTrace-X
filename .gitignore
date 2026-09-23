@@ -25,6 +25,9 @@ data/
 *.pem
 *.key
 *.gguf
+*.gguf.part*
+*.gguf.download
+*.gguf.assembling
 backups/
 *.p12
 *.pfx

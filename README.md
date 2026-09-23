@@ -1,50 +1,139 @@
+<p align="center"><img src="docs/images/cover.png" alt="DarkTrace X — Threat intelligence. Local AI. One workspace." width="100%"></p>
+
+<p align="center">
+<a href="https://github.com/hexalpha/DarkTrace-X/actions/workflows/ci.yml"><img src="https://github.com/hexalpha/DarkTrace-X/actions/workflows/ci.yml/badge.svg?branch=main" alt="Verification workflow"></a>
+<img src="https://img.shields.io/badge/status-local_preview-22d3ee" alt="Local preview">
+<img src="https://img.shields.io/badge/Next.js-15-111827" alt="Next.js 15">
+<img src="https://img.shields.io/badge/API-FastAPI-009688" alt="FastAPI">
+<img src="https://img.shields.io/badge/AI-Qwen3_4B_GGUF-8b5cf6" alt="Local Qwen3 4B">
+</p>
+
+<p align="center"><a href="#quick-start">Install & run</a> · <a href="docs/SHOWCASE.md">Screenshots</a> · <a href="docs/FEATURES.md">All features</a> · <a href="models/README.md">LLM model</a> · <a href="https://github.com/hexalpha/DarkTrace-X/releases/tag/v0.1.0-preview">Download release</a></p>
+
 # DarkTrace X
 
-A defensive threat-intelligence workspace with a FastAPI API, Next.js dashboard, PostgreSQL storage, Elasticsearch correlation and a provider-connected SOC assistant. Tenant workspaces start empty; the application does not insert demonstration intelligence.
+A defensive threat-intelligence workspace that brings evidence, investigations and a local AI copilot into one interface. Built with Next.js, FastAPI, PostgreSQL, Redis and Elasticsearch, with a persistent Qwen GGUF worker for local inference.
 
-## Start on this Windows workspace
+Collect approved sources, inspect indicators and CVEs, follow alerts, and export intelligence reports. Workspaces begin empty; records and detections come from supplied evidence or explicitly connected sources.
 
-Docker is also prepared: run `python scripts/setup_copilot.py`, then `docker compose --env-file .env.local up -d --build --wait` and open http://localhost:8080. Both application images and the complete Docker integration workflow, including local AI and logout, passed on 2026-09-15. Docker uses its own persistent database volumes, separate from the Windows installation below. See [deployment](docs/DEPLOYMENT.md) for restart and verification commands.
+> **Local preview.** Core services run locally. This release is not a production security certification. Cloud AI, SMTP delivery, licensed collection, GPU acceleration and Kubernetes require separate configuration or validation. See [release verification](docs/RELEASE_VERIFICATION.md).
 
-Run `./start-local.ps1` from this directory, then open http://localhost:3000. Create your workspace and first administrator through registration. Keep the workspace ID for later login. Use Administration to create analyst, lead or viewer accounts.
+## Dashboard
 
-The launcher uses the prepared Python 3.13 environment and portable services in `.runtime`. PostgreSQL listens on 127.0.0.1:15432, Elasticsearch on 127.0.0.1:19200, the API on 127.0.0.1:8000 and the dashboard on 127.0.0.1:3000. It verifies readiness before reporting success. `./start-local.ps1 -RestartApi` reloads backend changes. Logs and generated database/JWT secrets remain in ignored `.runtime`; retain that directory to preserve data and sessions.
+![Actual running DarkTrace X dashboard](docs/images/dashboard.png)
 
-This launcher is prepared for this machine. A fresh machine needs Python 3.13, Node, dependencies installed from `apps/api/requirements.txt` and `apps/web/pnpm-lock.yaml`, a Next.js build, and service archives obtained by `apps/api/scripts/download_runtime.py`. See [deployment](docs/DEPLOYMENT.md).
+*Real application capture, September 23, 2026, in an isolated documentation workspace. Zero counts represent an empty workspace. The cover is an AI-generated illustration; application screenshots are real.*
 
-## Local AI copilot
+## What you can do
 
-The authenticated dashboard includes a persistent floating cybersecurity copilot and `/ai-command-center`. A separate GGUF worker reuses loaded weights; model path and runtime settings are configurable. Primary/fallback/offline routing, encrypted provider keys, scoped memory, source-attributed read tools, allowlisted project knowledge and evidence-driven notifications are integrated. See [copilot setup](docs/COPILOT.md) and the current [verified readiness report](docs/READINESS_REPORT.md). The readiness report supersedes historical counts below.
-
-## Features and verification
-
-| Feature | Implemented behavior |
+| Area | Included capabilities |
 | --- | --- |
-| Login, multi-tenancy, RBAC | Persistent users; explicit workspace login; current roles checked per request; logout revokes tokens |
-| IOC intelligence and correlation | Validated observables, source/confidence, persistent records, Elasticsearch exact correlation and tenant-scoped graph |
-| Threat actors | Source-backed analyst records and reported technique relationships |
-| Threat feed and CVE dashboard | Real CISA Known Exploited Vulnerabilities ingestion; unavailable CVSS/EPSS values remain absent |
-| Source management and manual crawling | Tenant-scoped source registry with SSRF-safe validation, health, manual crawl, normalized documents, content-hash deduplication, crawl history and audit traceability |
-| Monitoring and alerts | Keyword matching on imported evidence; deduplicated alerts; analyst status changes and audit records |
-| Anomaly detection | Statistical entity baselines, evidence-linked findings and persistent alerts from telemetry ingestion |
-| Threat forecast | Evidence-linked trend priority; requires baseline data and is not a calibrated attack probability |
-| SOC assistant | Actual provider completion with tenant evidence and private persisted conversation history |
-| MCP | Authenticated built-in read-only Streamable HTTP server |
-| Marketplace | Three built-in extensions with installation, enable/disable and execution controls |
-| Reports | Authenticated PDF, DOCX and XLSX exports of recorded evidence |
-| Kubernetes | Non-root deployment manifests, probes and network policy; cluster deployment remains unverified |
+| Intelligence operations | IOC records, exact correlation, threat hunting, actors, graph, asset registry and exposure evidence |
+| Collection & processing | Approved-source registry; HTML/RSS/Atom/JSON/text parsing; manual and recurring crawls; documents, entities, events and crawl-job views |
+| Detection & review | Keyword monitoring, evidence-linked alerts, statistical anomalies, trend priorities and source-reported geography |
+| Local AI | Qwen3 4B GGUF, persistent worker, streaming copilot, private conversations, read-only tools and lexical project knowledge |
+| Collaboration & export | Tenant workspaces, role-based access, audit records, PDF/DOCX/XLSX reports and configurable delivery jobs |
+| Platform | REST, GraphQL, WebSockets, built-in MCP, bundled extensions, Docker Compose, migrations and Kubernetes manifests |
 
-Administrators can register signed outbound alert webhooks at `/api/v1/integrations/webhooks`; HTTPS, public-address, event and severity checks are enforced and secrets are encrypted. Leads and administrators can register validated five-field report schedules at `/api/v1/reports/schedules`. Schedule records are durable and audited, while actual email/report delivery remains `pending_external_delivery` until an SMTP or approved delivery worker is configured.
+The [complete feature catalog](docs/FEATURES.md) explains every workspace area and its limits.
 
-The current verification snapshot is documented in [READINESS_REPORT.md](docs/READINESS_REPORT.md). The Docker image suite passes 28 backend tests, including source-reported telemetry geography validation. The live integration workflow passes against PostgreSQL, Redis, Elasticsearch and the persistent GGUF worker, covering authentication, role changes, tenant isolation, correlation, graph, actor records, anomaly/forecast, replay handling, triage, keyword evidence, marketplace, MCP, reports, AI and logout. CISA ingestion retrieved 1,710 real source records. Test tenants are removed after verification. See [detection details](docs/DETECTION_EXTENSIONS.md).
+## Quick start
 
-## External dependencies and current limits
+Use a **fresh clone** with Git, Python 3.12+ and Docker Engine/Desktop with Compose v2. A practical starting allocation is 16 GB RAM, 4 CPU cores and 20 GB free disk; this is planning guidance, not a measured minimum. The first local-LLM image build compiles native dependencies. No cloud API key is required.
 
-- Local LM Studio completed a real SOC request. Ollama integration is implemented but its runtime is not running on this machine.
-- The existing OpenAI key was reused, but the live API returned HTTP 429; the precise provider reason was unavailable. Gemini needs a configured key. These adapters are not a claim of successful live provider verification.
-- No licensed dark-web provider is configured. Keyword matching and evidence import work, but there is no live dark-web coverage or autonomous crawling. Ingest approved evidence through Exposure Watch or `/api/v1/exposure/ingest`.
-- CISA refresh, source validation, manual crawling and telemetry/source ingestion are explicit actions. There is no scheduled collection worker in this release.
-- Marketplace extensions are bundled code; arbitrary third-party package installation and remote MCP process management are not implemented.
-- Notification webhooks and scheduled reports return 501 until a delivery worker is implemented. Manual exports work. Legacy alert-rule definitions are stored but are not an active rule engine.
+![Installation sequence](docs/images/quickstart.svg)
 
-See [security](docs/SECURITY.md) for implemented controls and remaining production work. This locally verified application has not undergone a production penetration test, load qualification or live Kubernetes rollout.
+```bash
+git clone https://github.com/hexalpha/DarkTrace-X.git
+cd DarkTrace-X
+python scripts/setup_local.py
+python scripts/model_assets.py download
+docker compose --env-file .env.local up -d --build --wait
+```
+
+Use `py -3` on Windows or `python3` on macOS/Linux if needed. Open **[http://localhost:8080](http://localhost:8080)** → **Create a new workspace**. Choose a workspace ID, name, email and password of at least 12 characters. The first account becomes administrator; keep the workspace ID for future logins.
+
+```bash
+# Inspect services and API readiness
+docker compose --env-file .env.local ps
+curl http://localhost:8080/api/v1/health/ready
+
+# Follow application logs
+docker compose --env-file .env.local logs --tail=100 api local-llm
+
+# Stop without deleting data, then resume
+docker compose --env-file .env.local stop
+docker compose --env-file .env.local up -d --wait
+```
+
+Full walkthrough: **[Installation guide](docs/INSTALLATION.md)**. Existing installations should preserve their environment files and volumes and follow [deployment operations](docs/DEPLOYMENT.md).
+
+## Local LLM included in the release
+
+The exact **2,497,277,408-byte Q4_K_M GGUF** is distributed as **two GitHub release assets**. The downloader checks and joins them automatically. Model weights stay out of Git history; source-code ZIP downloads do not include them.
+
+| Asset | Purpose |
+| --- | --- |
+| `*.gguf.part001` + `*.gguf.part002` | Complete model bytes split below GitHub's per-asset limit |
+| `model-manifest.json` | Sizes, download URLs and individual SHA-256 checksums |
+| `SHA256SUMS.txt` | Part and complete-model checksums |
+| `LICENSE-MODEL.txt` | Apache 2.0 license for the third-party model |
+
+**[Download assets](https://github.com/hexalpha/DarkTrace-X/releases/tag/v0.1.0-preview)** · **[Model provenance & offline installation](models/README.md)**
+
+## AI workspace
+
+![Actual local AI command center](docs/images/ai-command-center.png)
+
+Streaming conversations, persisted history, source attribution and scoped read tools. Cloud providers are opt-in and require credentials. Project knowledge uses lexical retrieval, not vector embeddings.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Browser[Browser] --> Gateway[Nginx :8080]
+    Gateway --> Web[Next.js dashboard]
+    Gateway --> API[FastAPI]
+    API --> DB[(PostgreSQL)]
+    API --> Cache[(Redis)]
+    API --> Search[(Elasticsearch)]
+    API --> AI[Persistent GGUF worker]
+    AI --> Weights[Qwen3 4B model]
+    API --> Sources[Approved external sources]
+```
+
+The gateway binds to `127.0.0.1:8080`. The Compose core network is internal. The bundled worker supports CPU inference; CUDA offload is not verified.
+
+## Repository map
+
+```text
+apps/api/       FastAPI, storage, migrations and backend tests
+apps/web/       Next.js dashboard and copilot
+apps/llm/       Persistent GGUF inference worker
+docs/           Guides, features, verification and real screenshots
+models/         Model manifest, attribution and license
+infra/          Nginx, Elasticsearch helpers and Kubernetes
+scripts/        Setup, model download, backup and recovery tools
+.github/        Automated verification
+```
+
+## Documentation
+
+| Guide | Purpose |
+| --- | --- |
+| [Installation](docs/INSTALLATION.md) | Fresh-machine setup, running and troubleshooting |
+| [Screenshot tour](docs/SHOWCASE.md) | Authentication, dashboard, sources, reports and AI |
+| [Feature catalog](docs/FEATURES.md) | Every workspace area and its behavior |
+| [Release verification](docs/RELEASE_VERIFICATION.md) | Checks performed for this version |
+| [Model guide](models/README.md) | Assets, checksums, reassembly and attribution |
+| [API](docs/API.md) / [Database](docs/DATABASE.md) | Integration and persistence |
+| [Deployment](docs/DEPLOYMENT.md) / [Security](docs/SECURITY.md) | Operational profiles and controls |
+| [Copilot](docs/COPILOT.md) | Local inference and provider configuration |
+
+Historical reports are dated snapshots and may describe earlier implementations. Use the current release verification and source for this version.
+
+## Scope & licensing
+
+No live licensed dark-web collection, SSO/MFA, immutable external audit retention or production penetration/load certification is claimed. Statistical scores are not calibrated attack probabilities. External delivery and provider adapters require independently configured services.
+
+Application source retains its existing proprietary/internal-deployment status; publication does not grant a new open-source license. The third-party model is separately Apache-2.0 licensed; see [model notices](models/README.md). DarkTrace X is this repository's project name and does not imply affiliation with Darktrace plc or the model authors.
